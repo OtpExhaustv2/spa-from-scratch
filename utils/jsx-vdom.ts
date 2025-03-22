@@ -1,50 +1,27 @@
 import { Component } from './component';
-import { createElement, VNode } from './vdom';
-
-// Component registry to store component factories
-type ComponentFactory = (props: Record<string, any>) => Component;
-const componentRegistry = new Map<string, ComponentFactory>();
+import { createElement, VNode, VNodeComponent } from './vdom';
 
 // Component instance cache to preserve instances between renders
 type ComponentKey = string;
 const componentCache = new Map<ComponentKey, Component>();
 
-/**
- * Generate a unique key for a component instance based on its tag and position
- */
+// Track component counter for unique keys
 let componentCounter = 0;
-const getComponentKey = (tagName: string, position: string): ComponentKey => {
-	return `${tagName}-${position}`;
-};
 
 /**
  * Clear the component cache
  * Call this when navigating to a different page
  */
 export function clearComponentCache(): void {
+	// Clean up any resources held by components
+	componentCache.forEach((component) => {
+		if (typeof component.destroy === 'function') {
+			component.destroy();
+		}
+	});
+
 	componentCache.clear();
 	componentCounter = 0;
-}
-
-/**
- * Register a component factory with a custom tag name
- * @param tagName Custom tag name to use in templates
- * @param factory Function that creates component with props
- */
-export function registerComponent(
-	tagName: string,
-	factory: ComponentFactory | (new (...args: any[]) => Component)
-): void {
-	const normalizedTag = tagName.toLowerCase();
-
-	// If we got a constructor, wrap it in a factory
-	if (typeof factory === 'function' && /^[A-Z]/.test(factory.name)) {
-		const Constructor = factory as new (...args: any[]) => Component;
-		componentRegistry.set(normalizedTag, (props) => new Constructor(props));
-	} else {
-		// Otherwise, use the factory directly
-		componentRegistry.set(normalizedTag, factory as ComponentFactory);
-	}
 }
 
 /**
@@ -103,123 +80,23 @@ export const html = (
 
 	// Parse the HTML string into a virtual DOM tree
 	const vdom = parseHTML(combinedString);
-
 	// Replace placeholders with actual values
 	return replacePlaceholders(vdom, valuesWithPlaceholders);
-};
-
-/**
- * Special attribute handler to detect and preserve camelCase props in HTML
- * This works by encoding camelCase props in a special way in the HTML
- */
-const preserveCamelCaseProps = (html: string): string => {
-	// Process the HTML to preserve camelCase props
-	let processedHtml = html;
-
-	// Find all attribute patterns that might be camelCase using regex
-	// This catches props like initialCount, maxLength, etc.
-	processedHtml = processedHtml.replace(
-		/\s([a-z]+[A-Z][a-zA-Z]*)(=["'][^"']*["'])/g,
-		(match, propName, value) => {
-			// Keep the original casing by encoding it in a data attribute
-			return ` data-camel-${propName}${value}`;
-		}
-	);
-
-	// Also handle potential event handlers (onclick -> onClick)
-	processedHtml = processedHtml.replace(
-		/\s(on)([a-z]+)(=["'][^"']*["'])/g,
-		(match, prefix, eventName, value) => {
-			// Convert first letter to uppercase for event name
-			const camelEventName =
-				eventName.charAt(0).toUpperCase() + eventName.slice(1);
-			return ` data-camel-${prefix}${camelEventName}${value}`;
-		}
-	);
-
-	return processedHtml;
 };
 
 /**
  * Parse an HTML string into a virtual DOM tree
  */
 const parseHTML = (html: string): VNode => {
-	// Preserve camelCase props before parsing
-	const processedHtml = preserveCamelCaseProps(html.trim());
-
 	// Create a temporary container
 	const template = document.createElement('template');
-	template.innerHTML = processedHtml;
+	template.innerHTML = html.trim();
 
 	// Get the first child
 	const firstChild = template.content.firstChild;
 
 	// Convert the DOM node to a virtual DOM node
 	return domToVNode(firstChild as Element);
-};
-
-/**
- * Universal solution for detecting and fixing camelCase prop names
- * HTML attributes are always lowercase, but JSX/React uses camelCase
- */
-const normalizePropKeys = (props: Record<string, any>): Record<string, any> => {
-	const result: Record<string, any> = {};
-
-	// First, handle special cases
-	if ('class' in props) {
-		result.className = props.class;
-	} else if ('className' in props) {
-		result.className = props.className;
-	}
-
-	if ('for' in props) {
-		result.htmlFor = props.for;
-	} else if ('htmlFor' in props) {
-		result.htmlFor = props.htmlFor;
-	}
-
-	// Create a map of lowercase keys to their original versions (for all camelCase props)
-	const originalKeys: Record<string, string> = {};
-
-	// Fill originalKeys with all existing props
-	Object.keys(props).forEach((key) => {
-		// Only map camelCase keys (keys with lowercase start + uppercase character in middle)
-		if (/^[a-z].*[A-Z].*$/.test(key)) {
-			originalKeys[key.toLowerCase()] = key;
-		}
-	});
-
-	// Process all props
-	Object.entries(props).forEach(([key, value]) => {
-		// Skip special cases we already handled
-		if (key === 'class' || key === 'for') return;
-
-		// Convert kebab-case to camelCase
-		if (key.includes('-')) {
-			const camelKey = key.replace(/-([a-z])/g, (_, letter) =>
-				letter.toUpperCase()
-			);
-			result[camelKey] = value;
-		}
-		// Check if this might be a lowercased version of a camelCase prop
-		else if (key.toLowerCase() === key && originalKeys[key]) {
-			// If we find a match, use the original camelCase version
-			result[originalKeys[key]] = value;
-		}
-		// For event handlers that might be lowercased (onclick -> onClick)
-		else if (key.startsWith('on') && key.length > 2) {
-			const eventName = key.substring(2);
-			const camelEventName =
-				eventName.charAt(0).toUpperCase() + eventName.slice(1);
-			result[`on${camelEventName}`] = value;
-		}
-		// Otherwise keep the key as is
-		else {
-			result[key] = value;
-		}
-	});
-
-	return result;
 };
 
 /**
@@ -242,54 +119,20 @@ const domToVNode = (node: Node, path: string = '0'): VNode => {
 		// Get attributes as props
 		const props: Record<string, any> = {};
 
-		// Process attributes to handle encoded camelCase properties
-		const camelCaseProps: Record<string, string> = {};
-
 		for (const attr of Array.from(el.attributes)) {
-			// Check for encoded camelCase props (data-camel-propName)
-			if (attr.name.startsWith('data-camel-')) {
-				const actualPropName = attr.name.substring('data-camel-'.length);
-				camelCaseProps[actualPropName] = attr.value;
-			} else {
-				// Add attribute to props - we'll normalize them later
-				props[attr.name] = attr.value;
-			}
+			// Preserve all attributes as they are in the DOM
+			props[attr.name] = attr.value;
 		}
 
-		// Add all camelCase props
-		Object.assign(props, camelCaseProps);
-
-		// Check if this is a registered component
-		if (componentRegistry.has(tagName)) {
-			// Generate a unique key for this component instance
-			const componentKey = getComponentKey(tagName, path);
-			let instance: Component;
-
-			// Process props before creating the component
-			const processedProps: Record<string, any> = { ...props };
-
-			// Normalize common React prop names
-			const normalizedProps = normalizePropKeys(processedProps);
-
-			// Reuse existing component if available
-			if (componentCache.has(componentKey)) {
-				instance = componentCache.get(componentKey)!;
-				// Here we would update props if we had a method for that
-			} else {
-				// Create a new component with the processed props
-				const factory = componentRegistry.get(tagName)!;
-
-				// Create the component with the processed props
-				instance = factory(normalizedProps);
-				componentCache.set(componentKey, instance);
-			}
-
+		// Check for component placeholder
+		if (tagName === 'component-placeholder') {
+			// Return element as is, it will be processed in replacePlaceholders
 			return {
-				type: 'component',
-				component: instance,
-				props: normalizedProps,
-				componentKey,
-			} as any;
+				type: 'element',
+				tagName,
+				props,
+				children: [],
+			};
 		}
 
 		// Get children with path information
@@ -297,13 +140,10 @@ const domToVNode = (node: Node, path: string = '0'): VNode => {
 			(childNode, index) => domToVNode(childNode, `${path}-${index}`)
 		);
 
-		// For regular elements, normalize the props
-		const normalizedProps = normalizePropKeys(props);
-
 		return {
 			type: 'element',
 			tagName,
-			props: normalizedProps,
+			props,
 			children,
 		};
 	}
@@ -331,16 +171,17 @@ const replacePlaceholders = (
 		'data-index' in vnode.props
 	) {
 		const index = parseInt(vnode.props['data-index'] as string, 10);
-		const component = values[index] as Component;
+		const value = values[index];
 
-		if (component instanceof Component) {
-			// Generate a component key for this explicit component instance
-			const componentKey = `explicit-component-${componentCounter++}`;
+		// Handle Component instances
+		if (value instanceof Component) {
+			// Generate a stable component key based on the component's position in the tree
+			const componentKey = `explicit-component-${path}`;
 
-			// Create a special node that will be replaced with the component's element
+			// Use the component directly
 			return {
 				type: 'component',
-				component,
+				component: value,
 				props: vnode.props,
 				componentKey,
 			} as any;
@@ -356,6 +197,12 @@ const replacePlaceholders = (
 		while ((match = placeholderRegex.exec(vnode.text)) !== null) {
 			const index = parseInt(match[1], 10);
 			const value = values[index];
+
+			// Check if this is a VNodeComponent from useComponent
+			if (value && typeof value === 'object' && value.type === 'component') {
+				// Return the component node directly
+				return value;
+			}
 
 			// If we find a placeholder that represents an array of VNodes,
 			// we'll return a special wrapper element containing those nodes
@@ -405,51 +252,6 @@ const replacePlaceholders = (
 
 	// Handle element nodes
 	if (vnode.type === 'element') {
-		// Check if this is a custom component
-		if (componentRegistry.has(vnode.tagName)) {
-			// Generate a unique key for this component instance
-			const componentKey = getComponentKey(vnode.tagName, path);
-			let instance: Component;
-
-			// Process props before creating the component
-			const processedProps: Record<string, any> = { ...vnode.props };
-
-			// Replace placeholder values in props
-			for (const [key, value] of Object.entries(processedProps)) {
-				if (typeof value === 'string') {
-					const placeholderRegex = /__VDOM_PLACEHOLDER_(\d+)__/g;
-					let match;
-
-					if ((match = placeholderRegex.exec(value)) !== null) {
-						const index = parseInt(match[1], 10);
-						processedProps[key] = values[index];
-					}
-				}
-			}
-
-			// Normalize props (fix casing issues)
-			const normalizedProps = normalizePropKeys(processedProps);
-
-			// Reuse existing component if available
-			if (componentCache.has(componentKey)) {
-				instance = componentCache.get(componentKey)!;
-				// Here we would update props if we had a method for that
-			} else {
-				// Create a new component with normalized props
-				const factory = componentRegistry.get(vnode.tagName)!;
-				instance = factory(normalizedProps);
-				componentCache.set(componentKey, instance);
-			}
-
-			// Return a component node
-			return {
-				type: 'component',
-				component: instance,
-				props: normalizedProps,
-				componentKey,
-			} as any;
-		}
-
 		// Check for placeholders in attributes
 		const newProps: Record<string, any> = { ...vnode.props };
 
@@ -460,7 +262,19 @@ const replacePlaceholders = (
 
 				if ((match = placeholderRegex.exec(value)) !== null) {
 					const index = parseInt(match[1], 10);
-					newProps[key] = values[index];
+					const placeholderValue = values[index];
+
+					// Special handling for components used in attribute values
+					if (
+						placeholderValue &&
+						typeof placeholderValue === 'object' &&
+						placeholderValue.type === 'component'
+					) {
+						// Extract the actual component instance for attribute values
+						newProps[key] = placeholderValue.component;
+					} else {
+						newProps[key] = placeholderValue;
+					}
 				}
 			}
 		}
@@ -498,4 +312,46 @@ const replacePlaceholders = (
 	}
 
 	return vnode;
+};
+
+/**
+ * Create a component VNode with proper typing
+ * Props are optional if the component doesn't require them
+ */
+export const useComponent = <P extends Record<string, any> = {}>(
+	ComponentClass: new (props?: P) => Component,
+	props?: P,
+	key?: string
+): VNodeComponent => {
+	// Generate a unique key for this component instance
+	// Use provided key or component name + counter
+	const cacheKey = key || `${ComponentClass.name}-${componentCounter++}`;
+
+	let instance: Component;
+
+	console.log('useComponent', cacheKey, componentCache);
+
+	// Check if we already have an instance with this key
+	if (componentCache.has(cacheKey)) {
+		// Reuse existing instance
+		instance = componentCache.get(cacheKey) as Component;
+
+		// Update props on existing instance
+		if (instance.updateProps && props) {
+			instance.updateProps(props as Record<string, any>);
+		}
+	} else {
+		// Create new instance if not found in cache
+		instance = new ComponentClass(props);
+
+		// Store in cache for future reference
+		componentCache.set(cacheKey, instance);
+	}
+
+	return {
+		type: 'component',
+		component: instance,
+		props: (props || {}) as Record<string, any>,
+		componentKey: cacheKey,
+	};
 };

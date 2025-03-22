@@ -6,7 +6,7 @@ export default class HooksCounterPage extends HookComponent {
 		super('div', 'page hooks-counter-page');
 	}
 
-	protected render = (): void => {
+	protected render() {
 		const [count, setCount] = this.useState(0);
 		const [step, setStep] = this.useState(1);
 
@@ -18,7 +18,7 @@ export default class HooksCounterPage extends HookComponent {
 			};
 		}, [count]);
 
-		const content = html`
+		return html`
 			<div class="counter-container">
 				<h1>Hooks Counter Example</h1>
 
@@ -72,7 +72,5 @@ export default class HooksCounterPage extends HookComponent {
 				</div>
 			</div>
 		`;
-
-		this.replaceContents(content);
-	};
+	}
 }

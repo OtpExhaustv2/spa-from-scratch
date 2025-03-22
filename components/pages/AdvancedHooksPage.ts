@@ -1,24 +1,25 @@
-import {
-	HookComponent,
-	createContext,
-	setContextValue,
-} from '../../utils/hooks';
-import { html, registerComponent } from '../../utils/jsx-vdom';
+import { HookComponent, createContext } from '../../utils/hooks';
+import { html, useComponent } from '../../utils/jsx-vdom';
 
 const ThemeContext = createContext<'light' | 'dark'>('light', 'theme');
 
+type TThemedBoxProps = {
+	message?: string;
+};
+
+// Regular component class, not implementing the constructor type
 class ThemedBox extends HookComponent {
 	private message: string;
 
-	constructor(props: Record<string, any> = {}) {
+	constructor(props?: TThemedBoxProps) {
 		super('div', 'themed-box');
-		this.message = props.message || 'This box uses the theme from context';
+		this.message = props?.message || 'This box uses the theme from context';
 	}
 
-	protected render = (): void => {
+	protected render() {
 		const theme = this.useContext(ThemeContext);
 
-		const content = html`
+		return html`
 			<div class="box ${theme}">
 				<p>${this.message}</p>
 				<p class="theme-details">
@@ -26,67 +27,47 @@ class ThemedBox extends HookComponent {
 				</p>
 			</div>
 		`;
-
-		this.replaceContents(content);
-	};
+	}
 }
+
+type TRefCounterProps = {
+	initialCount?: number;
+	label?: string;
+};
 
 class RefCounter extends HookComponent {
 	private initialCount: number;
 	private label: string;
 
-	constructor(props: Record<string, any> = {}) {
+	constructor(props?: TRefCounterProps) {
 		super('div', 'ref-counter');
-		console.log('RefCounter props:', props);
-		console.log('Props keys:', Object.keys(props));
 
-		// Parse initialCount from props (could be a string from attributes)
-		this.initialCount = 0;
-		if ('initialCount' in props) {
-			console.log('Found initialCount prop:', props.initialCount);
-			// Convert to number if it's a string
-			if (typeof props.initialCount === 'number') {
-				this.initialCount = props.initialCount;
-			} else if (typeof props.initialCount === 'string') {
-				// Try to parse string to number
-				const parsed = parseInt(props.initialCount, 10);
-				if (!isNaN(parsed)) {
-					this.initialCount = parsed;
-				}
-			}
-		} else if ('initialcount' in props) {
-			// Fallback in case the prop name was lowercased
-			console.log('Found lowercase initialcount prop:', props.initialcount);
-			if (typeof props.initialcount === 'number') {
-				this.initialCount = props.initialcount;
-			} else if (typeof props.initialcount === 'string') {
-				const parsed = parseInt(props.initialcount, 10);
-				if (!isNaN(parsed)) {
-					this.initialCount = parsed;
-				}
-			}
-		}
-
-		console.log('Final initialCount value:', this.initialCount);
-		this.label = props.label || 'Count';
+		this.initialCount = props?.initialCount || 0;
+		this.label = props?.label || 'Count';
 	}
 
-	protected render = (): void => {
+	protected render() {
+		// Use useState with initialCount, which will only be used for first render
 		const [count, setCount] = this.useState(this.initialCount);
 
 		const totalClicks = this.useRef(0);
 
 		const expensiveValue = this.useMemo(() => {
-			console.log('Computing expensive value');
 			return count * count;
 		}, [count]);
 
-		const handleClick = this.useCallback(() => {
+		// Define handleClick directly to avoid callback closure issues
+		const handleClick = () => {
+			// Update the ref first
 			totalClicks.current += 1;
-			setCount(count + 1);
-		}, [count]);
+			console.log('Total clicks:', totalClicks.current);
 
-		const content = html`
+			// Then update the state
+			setCount(count + 1);
+			console.log('New count should be:', count + 1);
+		};
+
+		return html`
 			<div class="counter-section">
 				<h3>useRef, useMemo & useCallback Demo</h3>
 				<p>${this.label}: ${count}</p>
@@ -95,53 +76,61 @@ class RefCounter extends HookComponent {
 				<button class="btn" onclick=${handleClick}>Increment</button>
 			</div>
 		`;
-
-		this.replaceContents(content);
-	};
+	}
 }
-
-// Register components so they can be used in JSX-like syntax
-registerComponent('themed-box', ThemedBox);
-registerComponent('ref-counter', RefCounter);
 
 export default class AdvancedHooksPage extends HookComponent {
 	constructor() {
 		super('div', 'page advanced-hooks-page');
 	}
 
-	protected render = (): void => {
-		const themeValue = this.useContext(ThemeContext);
+	protected render() {
+		const [count, setCount] = this.useState(0);
 
-		const toggleTheme = this.useCallback(() => {
-			const currentTheme = themeValue;
-			const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-			setContextValue(ThemeContext, newTheme);
-		}, [themeValue]);
+		// const themeValue = this.useContext(ThemeContext);
 
-		const content = html`
+		// const toggleTheme = this.useCallback(() => {
+		// 	// Get the current theme value from context directly
+		// 	// This ensures we always have the latest value
+		// 	const currentTheme = ThemeContext.value;
+		// 	const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+		// 	setContextValue(ThemeContext, newTheme);
+		// }, []); // No dependencies needed since we read from context directly
+
+		return html`
 			<div class="advanced-hooks-container">
 				<h1>Advanced Hooks Examples</h1>
 
 				<section class="context-section">
 					<h2>useContext Example</h2>
-					<p>Current theme: ${themeValue}</p>
-					<button class="btn" onclick=${toggleTheme}>Toggle Theme</button>
-					<!-- Use component with props in JSX -->
-					<themed-box
-						message="This box uses the ${themeValue} theme from context with props!"
-					></themed-box>
+					<p>Count: ${count}</p>
+					<button class="btn" onclick=${() => setCount(count + 1)}>
+						Increment
+					</button>
 				</section>
 
 				<section class="ref-memo-section">
 					<h2>useRef, useMemo & useCallback Example</h2>
-					<!-- Use component with props in JSX -->
-					<ref-counter initialCount="50" label="Custom Counter"></ref-counter>
+					${useComponent(
+						RefCounter,
+						{
+							initialCount: 50,
+							label: 'Custom Counter',
+						},
+						'counter-1'
+					)}
 				</section>
 
 				<section class="ref-memo-section">
 					<h2>Another Counter with Different Props</h2>
-					<!-- Same component, different props -->
-					<ref-counter initialCount="20" label="Another Counter"></ref-counter>
+					${useComponent(
+						RefCounter,
+						{
+							initialCount: 20,
+							label: 'Another Counter',
+						},
+						'counter-2'
+					)}
 				</section>
 
 				<div class="hooks-explanation">
@@ -157,7 +146,5 @@ export default class AdvancedHooksPage extends HookComponent {
 				</div>
 			</div>
 		`;
-
-		this.replaceContents(content);
-	};
+	}
 }

@@ -1,9 +1,0 @@
----
-description: 
-globs: 
-alwaysApply: true
----
-Always use arrow function.
-Always use "for (const ... of ...)" instead of ".forEach(...)".
-Always prefer using type over interface when defining a data structure.
-For types, always prefix the type's name with a "T" like this "TUser", "TProfile", ...

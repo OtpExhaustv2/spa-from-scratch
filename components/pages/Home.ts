@@ -7,7 +7,7 @@ export default class HomePage extends Component {
 		this.render();
 	}
 
-	protected render = (): void => {
+	protected render = () => {
 		const featureItems = [
 			'No frameworks or libraries',
 			'TypeScript for type safety',
@@ -17,7 +17,7 @@ export default class HomePage extends Component {
 			'State management with pub/sub pattern',
 		];
 
-		const content = html`
+		return html`
 			<div>
 				<h1 class="page-title">Welcome to Vanilla TS SPA</h1>
 
@@ -35,7 +35,5 @@ export default class HomePage extends Component {
 				</div>
 			</div>
 		`;
-
-		this.replaceContents(content);
 	};
 }

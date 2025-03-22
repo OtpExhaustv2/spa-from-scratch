@@ -1,5 +1,6 @@
 import { HookComponent } from '../utils/hooks';
 import { html } from '../utils/jsx-vdom';
+import { VNode } from '../utils/vdom';
 import { Notification } from './Notification';
 
 interface TodoItem {
@@ -13,7 +14,7 @@ export class TodoList extends HookComponent {
 		super('div', 'todo-container');
 	}
 
-	protected render = (): void => {
+	protected render = (): VNode => {
 		const [todos, setTodos] = this.useState<TodoItem[]>([]);
 		const [nextId, setNextId] = this.useState(1);
 
@@ -97,7 +98,7 @@ export class TodoList extends HookComponent {
 			});
 		}
 
-		const content = html`
+		return html`
 			<div class="todo-wrapper">
 				<h2>Todo List</h2>
 
@@ -115,7 +116,5 @@ export class TodoList extends HookComponent {
 				</ul>
 			</div>
 		`;
-
-		this.replaceContents(content);
 	};
 }

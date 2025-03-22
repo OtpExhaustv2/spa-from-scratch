@@ -5,6 +5,7 @@
 
 // Import VDOM utilities
 import { Component } from './component';
+import { VNode } from './vdom';
 
 // Define a context type for sharing data between components
 type TContext<T> = {
@@ -44,11 +45,17 @@ export const setContextValue = <T>(context: TContext<T>, newValue: T): void => {
 
 	context.value = newValue;
 
-	for (const subscriber of context.subscribers) {
+	// Create a copy of subscribers to avoid issues if a subscriber removes itself during notification
+	const subscribers = [...context.subscribers];
+
+	for (const subscriber of subscribers) {
 		try {
+			// Call the subscriber with the new value
 			subscriber(newValue);
 		} catch (error) {
 			console.error('Error notifying context subscriber:', error);
+			// If there's an error, remove the subscriber
+			context.subscribers.delete(subscriber);
 		}
 	}
 };
@@ -70,12 +77,15 @@ export abstract class HookComponent extends Component {
 	) {
 		super(propsOrTagName, className, attributes);
 
+		// Don't call updateUI here since it's called in the base class constructor
+		// Just prevent the initial render from happening twice
+		this.initialRenderComplete = true;
+
 		// Defer initial render until component is in the DOM
 		// to avoid timing issues with animations
 		setTimeout(() => {
-			if (!this.initialRenderComplete) {
+			if (this.initialRenderComplete) {
 				this.renderWithHooks();
-				this.initialRenderComplete = true;
 			}
 		}, 0);
 	}
@@ -85,13 +95,14 @@ export abstract class HookComponent extends Component {
 	 * @param initialState Initial state value
 	 * @returns [state, setState] tuple
 	 */
-	protected useState = <T>(initialState: T): [T, (newState: T) => void] => {
+	protected useState<T>(initialState: T): [T, (newState: T) => void] {
 		const index = this.hookIndex++;
 
 		// Initialize state if this is the first render
 		if (index >= this.hookStates.length) {
 			this.hookStates.push(initialState);
 		}
+		// Otherwise, use the existing state (ignore initialState on re-renders)
 
 		const state = this.hookStates[index];
 
@@ -99,20 +110,22 @@ export abstract class HookComponent extends Component {
 		const setState = (newState: T) => {
 			// Only update and re-render if state actually changed
 			if (this.hookStates[index] !== newState) {
+				// Update the state
 				this.hookStates[index] = newState;
+				// Trigger a re-render
 				this.update();
 			}
 		};
 
 		return [state, setState];
-	};
+	}
 
 	/**
 	 * useRef hook for creating a mutable reference object
 	 * @param initialValue Initial value
 	 * @returns A ref object with a current property
 	 */
-	protected useRef = <T>(initialValue: T): { current: T } => {
+	protected useRef<T>(initialValue: T): { current: T } {
 		const index = this.hookIndex++;
 
 		// Initialize ref if this is the first render
@@ -121,7 +134,7 @@ export abstract class HookComponent extends Component {
 		}
 
 		return this.hookStates[index];
-	};
+	}
 
 	/**
 	 * useMemo hook for memoizing expensive calculations
@@ -129,7 +142,7 @@ export abstract class HookComponent extends Component {
 	 * @param deps Dependencies array that determines when to recompute
 	 * @returns The memoized value
 	 */
-	protected useMemo = <T>(factory: () => T, deps: any[]): T => {
+	protected useMemo<T>(factory: () => T, deps: any[]): T {
 		const index = this.hookIndex++;
 
 		// Initialize memo state if needed
@@ -155,7 +168,7 @@ export abstract class HookComponent extends Component {
 		}
 
 		return memo.value;
-	};
+	}
 
 	/**
 	 * useCallback hook for memoizing functions
@@ -163,23 +176,30 @@ export abstract class HookComponent extends Component {
 	 * @param deps Dependencies array that determines when to recreate the function
 	 * @returns The memoized callback function
 	 */
-	protected useCallback = <T extends Function>(callback: T, deps: any[]): T => {
+	protected useCallback<T extends Function>(callback: T, deps: any[]): T {
 		return this.useMemo(() => callback, deps);
-	};
+	}
 
 	/**
 	 * useContext hook for consuming context values
 	 * @param context The context object created with createContext
 	 * @returns The current context value
 	 */
-	protected useContext = <T>(context: TContext<T>): T => {
+	protected useContext<T>(context: TContext<T>): T {
 		const index = this.hookIndex++;
 
 		// Initialize context subscription if needed
 		if (index >= this.hookStates.length) {
-			// Store the subscribe function in hook state
+			// Create a stable update function
 			const updateFromContext = (newValue: T) => {
-				this.update(newValue);
+				// Only trigger update if component is still in DOM
+				if (this.getElement().isConnected) {
+					// Just re-render the component when context changes
+					this.renderWithHooks();
+				} else {
+					// If component is no longer in DOM, remove the subscription
+					context.subscribers.delete(updateFromContext);
+				}
 			};
 
 			context.subscribers.add(updateFromContext);
@@ -191,17 +211,14 @@ export abstract class HookComponent extends Component {
 		}
 
 		return context.value;
-	};
+	}
 
 	/**
 	 * useEffect hook for side effects
 	 * @param callback Function to run
 	 * @param deps Dependency array
 	 */
-	protected useEffect = (
-		callback: () => void | (() => void),
-		deps?: any[]
-	): void => {
+	protected useEffect(callback: () => void | (() => void), deps?: any[]): void {
 		const index = this.hookIndex++;
 
 		// Initialize effect data if needed
@@ -234,41 +251,81 @@ export abstract class HookComponent extends Component {
 				cleanup,
 			};
 		}
-	};
+	}
 
 	/**
 	 * Override update method
 	 */
-	public override update = (_data?: any): void => {
+	public override update(_data?: any): void {
 		this.renderWithHooks();
-		this.initialRenderComplete = true;
-	};
+	}
 
 	/**
 	 * Render with hooks
 	 */
-	private renderWithHooks = (): void => {
+	private renderWithHooks(): void {
 		// Reset hook index before rendering
 		this.hookIndex = 0;
 
-		// Call the render method that uses hooks
-		this.render();
-	};
+		// Debug log
+		console.log(
+			`Rendering ${this.constructor.name} with ${this.hookStates.length} hook states`
+		);
+
+		// Handle render as both a function and a property
+		let content;
+
+		// Check if render is a function property
+		if (typeof this.render === 'function') {
+			content = this.render();
+		}
+		// Skip render if it's not implemented yet
+		else if (this.render === undefined) {
+			return;
+		}
+		// Treat as a method accessed via prototype
+		else {
+			const renderMethod = Object.getPrototypeOf(this).render;
+			if (typeof renderMethod === 'function') {
+				content = renderMethod.call(this);
+			} else {
+				console.warn('HookComponent has no render method implemented:', this);
+				return;
+			}
+		}
+
+		// If render returns content directly, apply it
+		if (content) {
+			this.replaceContents(content);
+		}
+	}
+
+	/**
+	 * Override abstract render method to allow returning VNode
+	 */
+	protected abstract override render(): VNode | void;
 
 	/**
 	 * Override destroy method to clean up effects
 	 */
-	public override destroy = (): void => {
+	public override destroy(): void {
 		// Run cleanup for effects
 		for (const state of this.hookStates) {
 			if (state && typeof state.cleanup === 'function') {
-				state.cleanup();
+				try {
+					state.cleanup();
+				} catch (error) {
+					console.error('Error in hook cleanup during destroy:', error);
+				}
 			}
 		}
 
 		// Clear hook states
 		this.hookStates = [];
-	};
+
+		// Call parent destroy method
+		super.destroy();
+	}
 }
 
 export { TContext as Context };

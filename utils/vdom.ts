@@ -113,12 +113,18 @@ export const createRealNode = (vnode: VNode): Node => {
 
 	// Create and append children
 	if (elementVNode.children) {
-		elementVNode.children
-			.map(createRealNode)
-			.forEach((childNode: Node) => el.appendChild(childNode));
+		for (const child of elementVNode.children) {
+			const childNode = createRealNode(child);
+			el.appendChild(childNode);
+		}
 	}
 
 	return el;
+};
+
+// Utility to check if a key is a data attribute
+const isDataAttribute = (key: string): boolean => {
+	return key.startsWith('data-');
 };
 
 /**
@@ -142,6 +148,12 @@ const setProps = (el: HTMLElement, props: Record<string, any>): void => {
 		// Handle className -> class
 		if (key === 'className') {
 			el.setAttribute('class', value);
+			continue;
+		}
+
+		// Make sure data-* attributes are set correctly
+		if (key.startsWith('data-')) {
+			el.setAttribute(key, value);
 			continue;
 		}
 
@@ -257,6 +269,12 @@ const updateProps = (
 		// Handle className -> class
 		if (key === 'className') {
 			el.setAttribute('class', value);
+			continue;
+		}
+
+		// Preserve data attributes exactly as they are
+		if (isDataAttribute(key)) {
+			el.setAttribute(key, value);
 			continue;
 		}
 
@@ -462,6 +480,9 @@ export function renderVNode(vnode: VNode): Node {
 			if (key === 'className') {
 				// Handle className -> class conversion
 				element.setAttribute('class', String(value));
+			} else if (key.startsWith('data-')) {
+				// Handle data attributes
+				element.setAttribute(key, String(value));
 			} else {
 				element.setAttribute(key, String(value));
 			}

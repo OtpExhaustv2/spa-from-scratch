@@ -1,8 +1,6 @@
 import { HookComponent } from '../../utils/hooks';
-import { html, registerComponent } from '../../utils/jsx-vdom';
+import { html, useComponent } from '../../utils/jsx-vdom';
 import { TodoList } from '../Todo';
-
-registerComponent('todo-list', TodoList);
 
 export default class TodoPage extends HookComponent {
 	constructor() {
@@ -11,20 +9,16 @@ export default class TodoPage extends HookComponent {
 		this.render();
 	}
 
-	protected render = (): void => {
-		const content = html`
+	protected render() {
+		return html`
 			<div>
 				<h1>Todo App</h1>
 				<p>
 					A simple todo application demonstrating state management in vanilla
 					TypeScript.
 				</p>
-				<div class="todo-list-container">
-					<todo-list></todo-list>
-				</div>
+				<div class="todo-list-container">${useComponent(TodoList)}</div>
 			</div>
 		`;
-
-		this.replaceContents(content);
-	};
+	}
 }

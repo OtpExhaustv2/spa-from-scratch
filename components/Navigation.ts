@@ -1,5 +1,6 @@
 import { Component } from '../utils/component';
 import { html } from '../utils/jsx-vdom';
+import { VNode } from '../utils/vdom';
 
 type NavLink = {
 	text: string;
@@ -12,12 +13,11 @@ export class Navigation extends Component {
 	constructor(links: NavLink[] = []) {
 		super('nav', 'main-navigation');
 		this.links = links;
-		this.render();
 	}
 
-	protected render = (): void => {
+	protected render(): VNode {
 		// Using our template literal JSX with VDOM
-		const content = html`
+		return html`
 			<ul class="nav-list">
 				${this.links.map((link) => {
 					const isActive = window.location.pathname === link.path;
@@ -33,14 +33,11 @@ export class Navigation extends Component {
 				})}
 			</ul>
 		`;
-
-		// Replace contents with our vDOM structure
-		this.replaceContents(content);
-	};
+	}
 
 	// Method to update navigation links
-	public updateLinks = (links: NavLink[]): void => {
+	public updateLinks(links: NavLink[]): void {
 		this.links = links;
-		this.render();
-	};
+		this.update();
+	}
 }

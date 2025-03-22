@@ -41,7 +41,7 @@ export class Router {
 		this.createLoadingIndicator();
 	}
 
-	private createLoadingIndicator = (): void => {
+	private createLoadingIndicator(): void {
 		this.loadingIndicator = document.createElement('div');
 		this.loadingIndicator.className = 'loading-indicator';
 		this.loadingIndicator.style.display = 'none';
@@ -67,9 +67,9 @@ export class Router {
 		this.loadingIndicator.appendChild(progressContainer);
 
 		document.body.appendChild(this.loadingIndicator);
-	};
+	}
 
-	private showLoading = (): void => {
+	private showLoading(): void {
 		if (this.loadingIndicator) {
 			// Clear any existing timeout
 			if (this.loadingTimeout !== null) {
@@ -91,9 +91,9 @@ export class Router {
 				}
 			}, 200);
 		}
-	};
+	}
 
-	private hideLoading = (): void => {
+	private hideLoading(): void {
 		if (this.loadingIndicator) {
 			// Clear any pending timeout
 			if (this.loadingTimeout !== null) {
@@ -121,9 +121,9 @@ export class Router {
 				this.loadingIndicator.style.display = 'none';
 			}
 		}
-	};
+	}
 
-	private simulateProgress = (): void => {
+	private simulateProgress(): void {
 		if (!this.progressBar) return;
 
 		let progress = 0;
@@ -150,29 +150,29 @@ export class Router {
 				this.progressBar.style.width = `${progress}%`;
 			}
 		}, 100);
-	};
+	}
 
-	add = (path: string, component: ComponentFactory): Router => {
+	add(path: string, component: ComponentFactory): Router {
 		this.routes.push({ path, component, lazy: false });
 		return this;
-	};
+	}
 
 	// Add support for lazy-loaded components
-	addLazy = (path: string, componentLoader: AsyncComponentFactory): Router => {
+	addLazy(path: string, componentLoader: AsyncComponentFactory): Router {
 		this.routes.push({
 			path,
 			component: componentLoader,
 			lazy: true,
 		});
 		return this;
-	};
+	}
 
-	setDefault = (component: ComponentFactory): Router => {
+	setDefault(component: ComponentFactory): Router {
 		this.defaultRoute = { path: '**', component, lazy: false };
 		return this;
-	};
+	}
 
-	navigate = (path: string): void => {
+	navigate(path: string): void {
 		// Clear component cache before navigation
 		if (window.location.pathname !== path) {
 			clearComponentCache();
@@ -181,33 +181,43 @@ export class Router {
 		// Update browser history
 		window.history.pushState({}, '', path);
 		this.render();
-	};
+	}
 
 	// Initialize router and first render
-	init = (): void => {
+	init(): void {
 		// Set up navigation link click handling
 		document.body.addEventListener('click', (e) => {
 			const target = e.target as HTMLElement;
-			if (target.matches('[data-link]')) {
-				e.preventDefault();
-				this.navigate((target as HTMLAnchorElement).href);
+
+			// Find the closest anchor element (could be the target or a parent)
+			const link = target.closest('a');
+
+			if (link && link instanceof HTMLAnchorElement) {
+				// Only intercept links to the same origin without target="_blank"
+				if (
+					link.origin === window.location.origin &&
+					(!link.hasAttribute('target') ||
+						link.getAttribute('target') !== '_blank')
+				) {
+					e.preventDefault();
+					this.navigate(link.pathname);
+				}
 			}
 		});
 
 		// Initial render based on current URL
 		this.render();
-	};
+	}
 
-	private cleanup = (): void => {
+	private cleanup(): void {
 		// Cleanup the current component if it exists
 		if (this.currentRoute?.currentInstance) {
-			console.log('Cleaning up component for route:', this.currentRoute);
 			this.currentRoute.currentInstance.destroy();
 			this.currentRoute.currentInstance = undefined;
 		}
-	};
+	}
 
-	private render = async (): Promise<void> => {
+	private async render(): Promise<void> {
 		const path = window.location.pathname;
 
 		// Find the matching route
@@ -304,15 +314,16 @@ export class Router {
 				'page-enter-active'
 			);
 		}, this.transitionDuration);
-	};
+	}
 
-	private updateActiveLinks = (currentPath: string): void => {
-		document.querySelectorAll('[data-link]').forEach((link) => {
+	private updateActiveLinks(currentPath: string): void {
+		const links = document.querySelectorAll('[data-link]');
+		for (const link of links) {
 			if ((link as HTMLAnchorElement).pathname === currentPath) {
 				link.classList.add('active');
 			} else {
 				link.classList.remove('active');
 			}
-		});
-	};
+		}
+	}
 }

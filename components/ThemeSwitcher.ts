@@ -12,63 +12,66 @@ export class ThemeSwitcher extends Component {
 		// Get initial theme from store
 		this.currentTheme = appStore.getState().theme;
 
+		// Bind the method to preserve 'this' context
+		this.handleStateChange = this.handleStateChange.bind(this);
+
 		// Subscribe to store changes
 		this.unsubscribe = appStore.subscribe(this.handleStateChange);
-
-		this.render();
 	}
 
 	/**
 	 * Handle state changes from the store
 	 */
-	private handleStateChange = (state: AppState): void => {
+	private handleStateChange(state: AppState): void {
 		if (state.theme !== this.currentTheme) {
 			this.currentTheme = state.theme;
-			this.render();
+			this.update();
 			this.applyTheme();
 		}
-	};
+	}
 
 	/**
 	 * Apply the current theme to the document
 	 */
-	private applyTheme = (): void => {
+	private applyTheme(): void {
 		document.body.classList.remove('light-theme', 'dark-theme');
 		document.body.classList.add(`${this.currentTheme}-theme`);
 
 		// Also store theme preference in localStorage
 		localStorage.setItem('theme', this.currentTheme);
-	};
+	}
 
 	/**
 	 * Toggle between light and dark themes
 	 */
-	private toggleTheme = (): void => {
+	private handleThemeToggle(): void {
 		const newTheme = this.currentTheme === 'light' ? 'dark' : 'light';
 		appStore.setState({ theme: newTheme });
-	};
+		this.update();
+	}
 
-	protected render = (): void => {
+	protected render() {
 		const icon = this.currentTheme === 'light' ? '🌙' : '☀️';
 		const text = this.currentTheme === 'light' ? 'Dark Mode' : 'Light Mode';
 
-		const content = html`
-			<button class="theme-toggle-button" onclick=${this.toggleTheme}>
+		return html`
+			<button
+				class="theme-toggle-button"
+				onclick=${this.handleThemeToggle.bind(this)}
+			>
 				<span>${icon}</span> ${text}
 			</button>
 		`;
-
-		// Replace contents with our vDOM structure
-		this.replaceContents(content);
-	};
+	}
 
 	/**
 	 * Clean up when component is destroyed
 	 */
-	public destroy = (): void => {
+	public override destroy(): void {
 		if (this.unsubscribe) {
 			this.unsubscribe();
 			this.unsubscribe = null;
 		}
-	};
+		super.destroy();
+	}
 }

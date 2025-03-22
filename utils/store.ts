@@ -57,7 +57,9 @@ export class Store<T> {
 		const stateCopy = { ...this.state };
 
 		// Notify all subscribers
-		this.subscribers.forEach((callback) => callback(stateCopy));
+		for (const callback of this.subscribers) {
+			callback(stateCopy);
+		}
 	}
 }
 
