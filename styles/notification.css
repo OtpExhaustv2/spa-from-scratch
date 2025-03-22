@@ -1,0 +1,123 @@
+/* Notification Styles */
+.notification-container {
+	position: fixed;
+	top: 20px;
+	right: 20px;
+	min-width: 300px;
+	max-width: 400px;
+	padding: 15px 20px;
+	border-radius: 4px;
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+	display: flex;
+	flex-direction: column;
+	z-index: 1000;
+	transform: translateX(120%);
+	transition: transform 0.3s ease-out;
+	opacity: 0;
+}
+
+.notification-container.show {
+	transform: translateX(0);
+	opacity: 1;
+}
+
+.notification-message {
+	flex-grow: 1;
+	margin-right: 15px;
+	color: white;
+	margin-bottom: 10px;
+}
+
+.notification-close {
+	background: transparent;
+	border: none;
+	color: white;
+	font-size: 20px;
+	cursor: pointer;
+	padding: 0;
+	width: 24px;
+	height: 24px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	opacity: 0.8;
+	transition: opacity 0.2s;
+	position: absolute;
+	top: 10px;
+	right: 10px;
+}
+
+.notification-close:hover {
+	opacity: 1;
+}
+
+/* Notification actions */
+.notification-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 10px;
+	margin-top: 5px;
+}
+
+.notification-actions .action-button {
+	padding: 6px 12px;
+	background: rgba(255, 255, 255, 0.15);
+	border: 1px solid rgba(255, 255, 255, 0.3);
+	color: white;
+	border-radius: 3px;
+	cursor: pointer;
+	font-size: 0.875rem;
+	transition: background 0.2s;
+}
+
+.notification-actions .action-button:hover {
+	background: rgba(255, 255, 255, 0.25);
+}
+
+.notification-actions .action-button:active {
+	background: rgba(255, 255, 255, 0.1);
+}
+
+/* Notification types */
+.notification-container.info {
+	background-color: #3498db;
+	border-left: 5px solid #2980b9;
+}
+
+.notification-container.success {
+	background-color: #2ecc71;
+	border-left: 5px solid #27ae60;
+}
+
+.notification-container.warning {
+	background-color: #f39c12;
+	border-left: 5px solid #e67e22;
+}
+
+.notification-container.error {
+	background-color: #e74c3c;
+	border-left: 5px solid #c0392b;
+}
+
+/* Animation for notifications */
+@keyframes fadeInRight {
+	from {
+		opacity: 0;
+		transform: translateX(100%);
+	}
+	to {
+		opacity: 1;
+		transform: translateX(0);
+	}
+}
+
+@keyframes fadeOutRight {
+	from {
+		opacity: 1;
+		transform: translateX(0);
+	}
+	to {
+		opacity: 0;
+		transform: translateX(100%);
+	}
+}

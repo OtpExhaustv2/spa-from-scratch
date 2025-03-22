@@ -1,0 +1,7 @@
+This directory will contain the icon files for the PWA:
+
+- icon-192.png (192x192 pixels)
+- icon-512.png (512x512 pixels) 
+- favicon.png (32x32 pixels)
+
+You'll need to create these icon assets with an image editor or icon generator. 
