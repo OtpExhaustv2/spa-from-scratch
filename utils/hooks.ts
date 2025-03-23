@@ -5,6 +5,7 @@
 
 // Import VDOM utilities
 import { Component } from './component';
+import { batchUpdates, cancelTask, scheduleTask } from './scheduler';
 import { VNode } from './vdom';
 
 // Define a context type for sharing data between components
@@ -72,6 +73,7 @@ export abstract class HookComponent extends Component {
 
 	private isBatchingUpdates = false;
 	private pendingStateUpdates: (() => void)[] = [];
+	private updateTaskId: number | null = null;
 
 	constructor(
 		propsOrTagName: Record<string, any> | string = {},
@@ -85,12 +87,13 @@ export abstract class HookComponent extends Component {
 		this.initialRenderComplete = true;
 
 		// Defer initial render until component is in the DOM
-		// to avoid timing issues with animations
-		setTimeout(() => {
+		// to avoid timing issues with animations - now using RAF
+		this.updateTaskId = scheduleTask(() => {
 			if (this.initialRenderComplete) {
 				this.renderWithHooks();
 			}
-		}, 0);
+			this.updateTaskId = null;
+		});
 	}
 
 	/**
@@ -137,12 +140,11 @@ export abstract class HookComponent extends Component {
 		const updates = [...this.pendingStateUpdates];
 		this.pendingStateUpdates = [];
 
-		for (const update of updates) {
-			update();
-		}
+		// Use batchUpdates from scheduler to run all updates in one frame
+		batchUpdates(updates);
 
-		// Then trigger a single re-render
-		this.update();
+		// Then trigger a single re-render through the scheduler
+		this.scheduleUpdate();
 	}
 
 	/**
@@ -184,10 +186,13 @@ export abstract class HookComponent extends Component {
 			if (!this.isBatchingUpdates) {
 				this.isBatchingUpdates = true;
 
-				// Schedule flush at the end of the current event loop
-				setTimeout(() => {
-					this.flushStateUpdates();
-				}, 0);
+				// Use the scheduler instead of setTimeout
+				if (this.updateTaskId === null) {
+					this.updateTaskId = scheduleTask(() => {
+						this.flushStateUpdates();
+						this.updateTaskId = null;
+					});
+				}
 			}
 		};
 
@@ -354,9 +359,15 @@ export abstract class HookComponent extends Component {
 	protected abstract override render(): VNode | void;
 
 	/**
-	 * Override destroy method to clean up effects
+	 * Override destroy method to clean up effects and cancel scheduled tasks
 	 */
 	public override destroy(): void {
+		// Cancel any pending update tasks
+		if (this.updateTaskId !== null) {
+			cancelTask(this.updateTaskId);
+			this.updateTaskId = null;
+		}
+
 		// Run cleanup for effects
 		for (const state of this.hookStates) {
 			if (state && typeof state.cleanup === 'function') {

@@ -17,6 +17,7 @@ export type VNodeElement = {
 	props: Record<string, any>;
 	children: VNode[];
 	el?: Node; // Reference to the actual DOM node
+	key?: string | number; // Unique key for reconciliation
 };
 
 export type VNodeComponent = {
@@ -38,28 +39,29 @@ export const createElement = (
 	props: Record<string, any> = {},
 	...children: any[]
 ): VNodeElement => {
-	// Process children to handle primitive values
-	const processedChildren: VNode[] = children
-		.flat()
+	// Extract key from props if present
+	const key = props.key;
+
+	// Create normalized children nodes
+	const normalizedChildren: VNode[] = children
+		.flat(Infinity)
 		.filter((child) => child !== null && child !== undefined)
 		.map((child) => {
-			// If child is already a VNode, return it
-			if (typeof child === 'object' && 'type' in child) {
-				return child;
+			if (typeof child === 'string' || typeof child === 'number') {
+				return {
+					type: 'text',
+					text: String(child),
+				};
 			}
-
-			// Otherwise, create a text node
-			return {
-				type: 'text',
-				text: String(child),
-			};
+			return child;
 		});
 
 	return {
 		type: 'element',
 		tagName,
 		props,
-		children: processedChildren,
+		children: normalizedChildren,
+		key,
 	};
 };
 
@@ -86,7 +88,10 @@ export const createRealNode = (vnode: VNode): Node => {
 	// Handle component nodes
 	if (vnode.type === 'component') {
 		const componentEl = vnode.component.getElement();
+		// Store reference to the DOM node
 		vnode.el = componentEl;
+		// Ensure we have the latest rendered output without directly calling protected methods
+		vnode.component.update();
 		return componentEl;
 	}
 
@@ -422,20 +427,120 @@ export const patch = (
 };
 
 /**
- * Patch children of a node
+ * Patch children of a node with efficient key-based reconciliation
  */
 const patchChildren = (
 	oldChildren: VNode[],
 	newChildren: VNode[],
 	parentEl: HTMLElement
 ): void => {
-	const maxLength = Math.max(oldChildren.length, newChildren.length);
+	// Step 1: Create a map of old children by key
+	const oldKeyToIndexMap = new Map<string | number, number>();
+	const oldKeyToNodeMap = new Map<string | number, VNode>();
 
-	for (let i = 0; i < maxLength; i++) {
-		const oldChild = i < oldChildren.length ? oldChildren[i] : null;
-		const newChild = i < newChildren.length ? newChildren[i] : null;
+	// Helper to get a unique key for a VNode
+	const getVNodeKey = (vnode: VNode, index: number): string | number => {
+		if (vnode.type === 'element' && vnode.key !== undefined) {
+			return vnode.key;
+		}
+		if (vnode.type === 'component' && vnode.componentKey) {
+			return vnode.componentKey;
+		}
+		// Fallback to position-based key if no explicit key
+		return `position-${index}`;
+	};
 
-		patch(oldChild, newChild, parentEl, i);
+	// Index old children by their keys
+	for (let i = 0; i < oldChildren.length; i++) {
+		const child = oldChildren[i];
+		const key = getVNodeKey(child, i);
+		oldKeyToIndexMap.set(key, i);
+		oldKeyToNodeMap.set(key, child);
+	}
+
+	// Initialize variables for tracking DOM operations
+	let lastIndex = 0;
+	const moves: Array<{ node: Node; refNode: Node | null }> = [];
+
+	// Track which old nodes are used
+	const usedKeys = new Set<string | number>();
+
+	// First, handle all new children
+	for (let i = 0; i < newChildren.length; i++) {
+		const newChild = newChildren[i];
+		const newKey = getVNodeKey(newChild, i);
+
+		let oldIndex = -1;
+		let oldChild: VNode | null = null;
+
+		// Try to find old child with matching key
+		if (oldKeyToNodeMap.has(newKey)) {
+			oldIndex = oldKeyToIndexMap.get(newKey) || -1;
+			oldChild = oldKeyToNodeMap.get(newKey) || null;
+			usedKeys.add(newKey);
+		}
+
+		// If we found a matching old node
+		if (oldChild) {
+			// Patch the old node with the new data
+			patch(oldChild, newChild, parentEl);
+
+			// Transfer reference to DOM node
+			newChild.el = oldChild.el;
+
+			// Check if we need to move this node
+			if (oldIndex < lastIndex) {
+				// Node needs to be moved to a later position
+				if (oldChild.el) {
+					// Queue move operation to be performed after all patches
+					const refNode =
+						i + 1 < newChildren.length ? newChildren[i + 1].el || null : null;
+					moves.push({ node: oldChild.el, refNode });
+				}
+			} else {
+				// Update lastIndex if this node doesn't need to be moved
+				lastIndex = oldIndex;
+			}
+		} else {
+			// No matching old node, create a new one
+			const newNode = createRealNode(newChild);
+
+			// Figure out where to insert
+			// This is a bit complex because we need to consider both existing nodes and future nodes
+			let insertPosition = i;
+			// Look ahead to find if any following nodes have already been processed
+			for (let j = i + 1; j < newChildren.length; j++) {
+				const nextKey = getVNodeKey(newChildren[j], j);
+				if (oldKeyToNodeMap.has(nextKey) && newChildren[j].el) {
+					insertPosition = j;
+					break;
+				}
+			}
+
+			// Insert at the correct position
+			if (insertPosition > i) {
+				// Insert before a node we found ahead
+				parentEl.insertBefore(newNode, newChildren[insertPosition].el || null);
+			} else {
+				// Insert at current index
+				const refNode = parentEl.childNodes[i] || null;
+				parentEl.insertBefore(newNode, refNode);
+			}
+		}
+	}
+
+	// Now perform all queued move operations
+	for (const { node, refNode } of moves) {
+		parentEl.insertBefore(node, refNode);
+	}
+
+	// Remove old nodes that aren't in the new children list
+	for (let i = 0; i < oldChildren.length; i++) {
+		const child = oldChildren[i];
+		const key = getVNodeKey(child, i);
+		if (!usedKeys.has(key) && child.el) {
+			parentEl.removeChild(child.el);
+		}
 	}
 };
 

@@ -1,4 +1,40 @@
+import { cancelTask, scheduleTask } from './scheduler';
 import { VNode, createRealNode, patch } from './vdom';
+
+// Function for shallowEqual comparison
+const shallowEqual = (objA: any, objB: any): boolean => {
+	if (objA === objB) {
+		return true;
+	}
+
+	if (
+		typeof objA !== 'object' ||
+		objA === null ||
+		typeof objB !== 'object' ||
+		objB === null
+	) {
+		return false;
+	}
+
+	const keysA = Object.keys(objA);
+	const keysB = Object.keys(objB);
+
+	if (keysA.length !== keysB.length) {
+		return false;
+	}
+
+	// Test for A's keys different from B.
+	for (const key of keysA) {
+		if (
+			!Object.prototype.hasOwnProperty.call(objB, key) ||
+			objA[key] !== objB[key]
+		) {
+			return false;
+		}
+	}
+
+	return true;
+};
 
 /**
  * Base Component class
@@ -9,6 +45,9 @@ export abstract class Component {
 	protected props: Record<string, any> = {};
 	protected isMounted: boolean = false;
 	private lastVNode: VNode | null = null;
+	private lastRenderResult: VNode | null = null;
+	private shouldUpdate: boolean = true;
+	private updateScheduled: number | null = null;
 
 	constructor(
 		propsOrTagName: Record<string, any> | string = {},
@@ -40,9 +79,11 @@ export abstract class Component {
 
 		// Defer initial render to next tick to ensure
 		// component is fully constructed before rendering
-		setTimeout(() => {
+		// Now using RAF scheduler
+		this.updateScheduled = scheduleTask(() => {
 			this.updateUI();
-		}, 0);
+			this.updateScheduled = null;
+		});
 	}
 
 	/**
@@ -64,8 +105,35 @@ export abstract class Component {
 	 * Default implementation just re-renders
 	 */
 	public update(data?: any): void {
-		// Subclasses should override this method
-		this.updateUI();
+		// Mark component for update
+		this.shouldUpdate = true;
+		// Schedule update using rAF for better performance
+		this.scheduleUpdate();
+	}
+
+	/**
+	 * Schedule an update using requestAnimationFrame
+	 */
+	protected scheduleUpdate(): void {
+		// Avoid scheduling multiple updates
+		if (this.updateScheduled !== null) {
+			return;
+		}
+
+		// Schedule update for next animation frame
+		this.updateScheduled = scheduleTask(() => {
+			this.updateUI();
+			this.updateScheduled = null;
+		});
+	}
+
+	/**
+	 * Check if component should update based on props comparison
+	 * Can be overridden by subclasses for custom logic
+	 */
+	protected shouldComponentUpdate(newProps: Record<string, any>): boolean {
+		// Default implementation does a shallow comparison of props
+		return !shallowEqual(this.props, newProps);
 	}
 
 	/**
@@ -73,16 +141,11 @@ export abstract class Component {
 	 * Can be called when the component is reused with new props
 	 */
 	public updateProps(newProps: Record<string, any>): void {
-		// Check if props have actually changed before updating
-		const hasChanged =
-			!this.props ||
-			Object.entries(newProps).some(
-				([key, value]) => this.props[key] !== value
-			);
-
-		if (hasChanged) {
+		// Check if props have actually changed using shouldComponentUpdate
+		if (this.shouldComponentUpdate(newProps)) {
 			this.props = { ...newProps };
-			this.updateUI();
+			this.shouldUpdate = true;
+			this.scheduleUpdate();
 		}
 	}
 
@@ -94,9 +157,14 @@ export abstract class Component {
 	protected abstract render(): VNode | void;
 
 	/**
-	 * Internal method to update the UI based on render output
+	 * Memoize render result to avoid unnecessary DOM updates
 	 */
-	protected updateUI(): void {
+	protected memoizeRender(): VNode | void {
+		// If we shouldn't update, return last result
+		if (!this.shouldUpdate && this.lastRenderResult) {
+			return this.lastRenderResult;
+		}
+
 		let content;
 
 		if (typeof this.render === 'function') {
@@ -117,6 +185,20 @@ export abstract class Component {
 			}
 		}
 
+		// Store the render result for memoization
+		this.lastRenderResult = content;
+		this.shouldUpdate = false;
+
+		return content;
+	}
+
+	/**
+	 * Internal method to update the UI based on render output
+	 */
+	protected updateUI(): void {
+		// Use memoization to avoid unnecessary rendering
+		const content = this.memoizeRender();
+
 		// If render returns content directly, apply it
 		if (content) {
 			this.replaceContents(content);
@@ -128,7 +210,13 @@ export abstract class Component {
 	 * Should be overridden by subclasses if they need cleanup
 	 */
 	public destroy(): void {
-		// Default implementation does nothing
+		// Cancel any pending updates
+		if (this.updateScheduled !== null) {
+			cancelTask(this.updateScheduled);
+			this.updateScheduled = null;
+		}
+
+		// Default implementation does nothing else
 	}
 
 	/**

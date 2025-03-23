@@ -137,9 +137,17 @@ const domToVNode = (node: Node, path: string = '0'): VNode => {
 
 		// Get attributes as props
 		const props: Record<string, any> = {};
+		let key: string | number | undefined = undefined;
 
 		for (const attr of Array.from(el.attributes)) {
-			// Preserve all attributes as they are in the DOM
+			// Check for key attribute
+			if (attr.name === 'key') {
+				key = attr.value;
+				// Don't include key in props, it's handled separately
+				continue;
+			}
+
+			// Preserve all other attributes as they are in the DOM
 			props[attr.name] = attr.value;
 		}
 
@@ -164,6 +172,7 @@ const domToVNode = (node: Node, path: string = '0'): VNode => {
 			tagName,
 			props,
 			children,
+			key, // Include key if present
 		};
 	}
 
@@ -273,8 +282,9 @@ const replacePlaceholders = (
 	if (vnode.type === 'element') {
 		// Check for placeholders in attributes
 		const newProps: Record<string, any> = { ...vnode.props };
+		let key = vnode.key; // Preserve the original key
 
-		for (const [key, value] of Object.entries(vnode.props || {})) {
+		for (const [propKey, value] of Object.entries(vnode.props || {})) {
 			if (typeof value === 'string') {
 				const placeholderRegex = /__VDOM_PLACEHOLDER_(\d+)__/g;
 				let match;
@@ -283,6 +293,14 @@ const replacePlaceholders = (
 					const index = parseInt(match[1], 10);
 					const placeholderValue = values[index];
 
+					// Handle key replacements specially
+					if (propKey === 'key') {
+						key = placeholderValue;
+						// Don't add key to props, it's handled separately
+						delete newProps[propKey];
+						continue;
+					}
+
 					// Special handling for components used in attribute values
 					if (
 						placeholderValue &&
@@ -290,9 +308,9 @@ const replacePlaceholders = (
 						placeholderValue.type === 'component'
 					) {
 						// Extract the actual component instance for attribute values
-						newProps[key] = placeholderValue.component;
+						newProps[propKey] = placeholderValue.component;
 					} else {
-						newProps[key] = placeholderValue;
+						newProps[propKey] = placeholderValue;
 					}
 				}
 			}
@@ -327,6 +345,7 @@ const replacePlaceholders = (
 			tagName: vnode.tagName,
 			props: newProps,
 			children: newChildren,
+			key, // Include the key in the returned element
 		};
 	}
 

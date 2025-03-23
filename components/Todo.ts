@@ -82,7 +82,7 @@ export class TodoList extends HookComponent {
 				const handleDelete = () => removeTodo(todo.id);
 
 				return html`
-					<li class="${itemClass}" data-id="${todo.id}">
+					<li key=${todo.id} class="${itemClass}" data-id="${todo.id}">
 						<input
 							type="checkbox"
 							class="todo-checkbox"

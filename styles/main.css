@@ -4,6 +4,7 @@
 @import 'audio-player.css';
 @import 'notification.css';
 @import 'transitions.css';
+@import 'key-example.css';
 
 /* Reset and base styles */
 * {

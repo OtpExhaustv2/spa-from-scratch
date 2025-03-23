@@ -1,15 +1,10 @@
-import './styles/audio-player.css';
 import './styles/main.css';
-import './styles/notification.css';
-import './styles/theme.css';
-import './styles/todo.css';
-import './styles/transitions.css';
-import './styles/users.css';
 
 // Log startup performance
 console.time('App Initialization');
 
 // Import core components and utilities
+import { KeyExample } from './components/examples/KeyExample';
 import { Navigation } from './components/Navigation';
 import { Notification } from './components/Notification';
 import HomePage from './components/pages/Home';
@@ -62,6 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
 		{ text: 'Hooks Counter', path: '/hooks-counter' },
 		{ text: 'Advanced Hooks', path: '/advanced-hooks' },
 		{ text: 'Users', path: '/users' },
+		{ text: 'Key Example', path: '/key-example' },
 		{ text: 'About', path: '/about' },
 	]);
 
@@ -87,6 +83,7 @@ document.addEventListener('DOMContentLoaded', () => {
 		.addLazy('/hooks-counter', loadPage('HooksCounterPage'))
 		.addLazy('/advanced-hooks', loadPage('AdvancedHooksPage'))
 		.addLazy('/users', loadPage('UsersPage'))
+		.add('/key-example', () => new KeyExample())
 		.addLazy('/about', loadPage('AboutPage'))
 		.setDefault(() => new NotFoundPage());
 

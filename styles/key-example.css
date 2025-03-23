@@ -1,0 +1,124 @@
+.key-example-container {
+	max-width: 1200px;
+	margin: 0 auto;
+	padding: 20px;
+	font-family: system-ui, -apple-system, sans-serif;
+}
+
+.key-example h2 {
+	margin-bottom: 16px;
+	color: #333;
+}
+
+.key-example .actions {
+	margin-bottom: 24px;
+}
+
+.key-example .actions button {
+	background-color: #4a90e2;
+	color: white;
+	border: none;
+	padding: 8px 16px;
+	margin-right: 8px;
+	border-radius: 4px;
+	cursor: pointer;
+	font-weight: 500;
+	transition: background-color 0.2s;
+}
+
+.key-example .actions button:hover {
+	background-color: #357bd8;
+}
+
+.key-example .lists-container {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 24px;
+	margin-bottom: 32px;
+}
+
+.key-example .list-with-keys,
+.key-example .list-without-keys {
+	flex: 1;
+	min-width: 300px;
+	padding: 16px;
+	border-radius: 8px;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.key-example .list-with-keys {
+	background-color: rgba(76, 175, 80, 0.1);
+	border: 1px solid rgba(76, 175, 80, 0.3);
+}
+
+.key-example .list-without-keys {
+	background-color: rgba(244, 67, 54, 0.1);
+	border: 1px solid rgba(244, 67, 54, 0.3);
+}
+
+.key-example h3 {
+	margin-top: 0;
+	margin-bottom: 8px;
+	font-size: 18px;
+}
+
+.key-example .list-with-keys h3 {
+	color: #2e7d32;
+}
+
+.key-example .list-without-keys h3 {
+	color: #c62828;
+}
+
+.key-example ul {
+	list-style: none;
+	padding: 0;
+	margin: 0;
+}
+
+.key-example .list-item {
+	padding: 12px;
+	margin-bottom: 8px;
+	background: white;
+	border-radius: 4px;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	transition: transform 0.2s, opacity 0.2s;
+}
+
+.key-example .list-item:hover {
+	transform: translateY(-2px);
+}
+
+.key-example .list-item button {
+	background-color: #f44336;
+	color: white;
+	border: none;
+	padding: 4px 8px;
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 12px;
+}
+
+.key-example .explanation {
+	background-color: #f8f9fa;
+	padding: 20px;
+	border-radius: 8px;
+	border-left: 4px solid #4a90e2;
+}
+
+.key-example .explanation h3 {
+	margin-top: 0;
+	color: #333;
+}
+
+.key-example .explanation ul {
+	padding-left: 20px;
+	list-style-type: disc;
+}
+
+.key-example .explanation li {
+	margin-bottom: 6px;
+}
