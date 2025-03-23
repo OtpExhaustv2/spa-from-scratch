@@ -58,7 +58,10 @@ class RefCounter extends HookComponent {
 
 		const handleClick = () => {
 			totalClicks.current += 1;
-			setCount(count + 1);
+
+			setCount((c) => c + 1);
+			setCount((c) => c + 1);
+			setCount((c) => c + 1);
 		};
 
 		return html`

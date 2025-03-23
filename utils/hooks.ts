@@ -70,6 +70,9 @@ export abstract class HookComponent extends Component {
 	private hookIndex = 0;
 	private initialRenderComplete = false;
 
+	private isBatchingUpdates = false;
+	private pendingStateUpdates: (() => void)[] = [];
+
 	constructor(
 		propsOrTagName: Record<string, any> | string = {},
 		className: string = '',
@@ -122,6 +125,27 @@ export abstract class HookComponent extends Component {
 	}
 
 	/**
+	 * Process all batched updates at once
+	 */
+	private flushStateUpdates(): void {
+		if (!this.isBatchingUpdates || this.pendingStateUpdates.length === 0) {
+			return;
+		}
+
+		this.isBatchingUpdates = false;
+
+		const updates = [...this.pendingStateUpdates];
+		this.pendingStateUpdates = [];
+
+		for (const update of updates) {
+			update();
+		}
+
+		// Then trigger a single re-render
+		this.update();
+	}
+
+	/**
 	 * useState hook for managing component state
 	 * @param initialState Initial state value or function that returns the initial state
 	 * @returns [state, setState] tuple
@@ -144,14 +168,26 @@ export abstract class HookComponent extends Component {
 		const state = this.hookStates[index] as T;
 
 		const setState = (newState: T | ((prevState: T) => T)) => {
-			const nextState =
-				typeof newState === 'function'
-					? (newState as (prevState: T) => T)(this.hookStates[index] as T)
-					: newState;
+			const updateFn = () => {
+				const nextState =
+					typeof newState === 'function'
+						? (newState as (prevState: T) => T)(this.hookStates[index] as T)
+						: newState;
 
-			if (this.hookStates[index] !== nextState) {
-				this.hookStates[index] = nextState;
-				this.update();
+				if (this.hookStates[index] !== nextState) {
+					this.hookStates[index] = nextState;
+				}
+			};
+
+			this.pendingStateUpdates.push(updateFn);
+
+			if (!this.isBatchingUpdates) {
+				this.isBatchingUpdates = true;
+
+				// Schedule flush at the end of the current event loop
+				setTimeout(() => {
+					this.flushStateUpdates();
+				}, 0);
 			}
 		};
 
