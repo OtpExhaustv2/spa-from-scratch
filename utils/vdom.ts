@@ -361,10 +361,23 @@ export const patch = (
 
 	// Handle component nodes
 	if (oldVNode.type === 'component' && newVNode.type === 'component') {
-		// For now, we'll just replace the component
-		// A more sophisticated implementation would check component types and props
-		newVNode.el = oldVNode.el;
-		return oldVNode.el as Node;
+		// If it's the same component instance, don't recreate it
+		if (oldVNode.componentKey === newVNode.componentKey) {
+			// Just update props if needed
+			if (newVNode.component.updateProps && newVNode.props) {
+				newVNode.component.updateProps(newVNode.props);
+			}
+			// Keep the old element reference
+			newVNode.el = oldVNode.el;
+			return oldVNode.el as Node;
+		} else {
+			// If it's a different component, replace it
+			const newNode = createRealNode(newVNode);
+			if (oldVNode.el && oldVNode.el.parentNode) {
+				oldVNode.el.parentNode.replaceChild(newNode, oldVNode.el);
+			}
+			return newNode;
+		}
 	}
 
 	// Handle text nodes

@@ -1,4 +1,4 @@
-import { renderVNode, VNode } from './vdom';
+import { VNode, createRealNode, patch } from './vdom';
 
 /**
  * Base Component class
@@ -146,19 +146,56 @@ export abstract class Component {
 	}
 
 	/**
-	 * Replace the component's contents with the given VNode
-	 * This uses our virtual DOM system for efficient updates
+	 * Update the component's rendered content
+	 * @param content HTML or DOM node to set as content
 	 */
-	protected replaceContents(vnode: VNode): void {
-		// Clear the element first
-		this.element.innerHTML = '';
+	protected replaceContents(content: Node | VNode | string): void {
+		// Store the last VNode for efficient diffing
+		let newVNode: VNode;
 
-		// Store the VNode for potential future diffing
-		this.lastVNode = vnode;
+		if (typeof content === 'string') {
+			// Parse HTML string into VNode
+			newVNode = {
+				type: 'text',
+				text: content,
+			};
+		} else if ('nodeType' in content) {
+			// Convert real DOM node to VNode
+			// Not ideal, but we'll use it as a text node for now
+			newVNode = {
+				type: 'text',
+				text: content.textContent || '',
+			};
+		} else {
+			// Already a VNode
+			newVNode = content;
+		}
 
-		// Render the vnode to a real DOM node and append it
-		const node = renderVNode(vnode);
-		this.element.appendChild(node);
+		// If we have a previous VNode, do a proper diff+patch
+		if (this.lastVNode) {
+			// Apply patch to update only what changed
+			patch(this.lastVNode, newVNode, this.element);
+		} else {
+			// First render, just clear the element and append
+			// Clear existing content
+			while (this.element.firstChild) {
+				this.element.removeChild(this.element.firstChild);
+			}
+
+			// Create and append new content
+			if (typeof content === 'string') {
+				this.element.innerHTML = content;
+			} else if ('nodeType' in content) {
+				this.element.appendChild(content);
+			} else {
+				// Create real DOM from VNode and append
+				const newNode = createRealNode(newVNode);
+				this.element.appendChild(newNode);
+			}
+		}
+
+		// Update the reference to the last VNode
+		this.lastVNode = newVNode;
 	}
 
 	/**
