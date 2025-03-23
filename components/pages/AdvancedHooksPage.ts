@@ -33,6 +33,7 @@ class ThemedBox extends HookComponent {
 type TRefCounterProps = {
 	initialCount?: number;
 	label?: string;
+	countFromOutside: number;
 };
 
 class RefCounter extends HookComponent {
@@ -47,7 +48,6 @@ class RefCounter extends HookComponent {
 	}
 
 	protected render() {
-		// Use useState with initialCount, which will only be used for first render
 		const [count, setCount] = this.useState(this.initialCount);
 
 		const totalClicks = this.useRef(0);
@@ -56,21 +56,16 @@ class RefCounter extends HookComponent {
 			return count * count;
 		}, [count]);
 
-		// Define handleClick directly to avoid callback closure issues
 		const handleClick = () => {
-			// Update the ref first
 			totalClicks.current += 1;
-			console.log('Total clicks:', totalClicks.current);
-
-			// Then update the state
 			setCount(count + 1);
-			console.log('New count should be:', count + 1);
 		};
 
 		return html`
 			<div class="counter-section">
 				<h3>useRef, useMemo & useCallback Demo</h3>
 				<p>${this.label}: ${count}</p>
+				<p>Count from outside: ${this.props.countFromOutside}</p>
 				<p>Square value (memoized): ${expensiveValue}</p>
 				<p>Total clicks (ref): ${totalClicks.current}</p>
 				<button class="btn" onclick=${handleClick}>Increment</button>
@@ -86,16 +81,6 @@ export default class AdvancedHooksPage extends HookComponent {
 
 	protected render() {
 		const [count, setCount] = this.useState(0);
-
-		// const themeValue = this.useContext(ThemeContext);
-
-		// const toggleTheme = this.useCallback(() => {
-		// 	// Get the current theme value from context directly
-		// 	// This ensures we always have the latest value
-		// 	const currentTheme = ThemeContext.value;
-		// 	const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-		// 	setContextValue(ThemeContext, newTheme);
-		// }, []); // No dependencies needed since we read from context directly
 
 		return html`
 			<div class="advanced-hooks-container">
@@ -116,6 +101,7 @@ export default class AdvancedHooksPage extends HookComponent {
 						{
 							initialCount: 50,
 							label: 'Custom Counter',
+							countFromOutside: count,
 						},
 						'counter-1'
 					)}
@@ -128,22 +114,11 @@ export default class AdvancedHooksPage extends HookComponent {
 						{
 							initialCount: 20,
 							label: 'Another Counter',
+							countFromOutside: count,
 						},
 						'counter-2'
 					)}
 				</section>
-
-				<div class="hooks-explanation">
-					<h3>Implemented Hooks:</h3>
-					<ul>
-						<li><code>useState</code> - Manages component state</li>
-						<li><code>useEffect</code> - Handles side effects</li>
-						<li><code>useRef</code> - Maintains mutable references</li>
-						<li><code>useMemo</code> - Memoizes expensive calculations</li>
-						<li><code>useCallback</code> - Memoizes callback functions</li>
-						<li><code>useContext</code> - Consumes shared context values</li>
-					</ul>
-				</div>
 			</div>
 		`;
 	}

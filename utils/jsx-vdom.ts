@@ -11,18 +11,37 @@ let componentCounter = 0;
 /**
  * Clear the component cache
  * Call this when navigating to a different page
+ * Components with explicit keys are preserved
  */
-export function clearComponentCache(): void {
-	// Clean up any resources held by components
-	componentCache.forEach((component) => {
-		if (typeof component.destroy === 'function') {
-			component.destroy();
-		}
-	});
+export const clearComponentCache = (): void => {
+	// Find components to keep (those with explicit keys)
+	const componentsToKeep = new Map<ComponentKey, Component>();
 
+	// Identify components with explicit keys (not auto-generated)
+	for (const [key, component] of componentCache.entries()) {
+		// Keep components with keys that don't match the auto-generated pattern
+		if (!key.match(/^[A-Za-z]+-\d+$/)) {
+			console.log(`Preserving component with key: ${key}`);
+			componentsToKeep.set(key, component);
+		} else {
+			// Destroy components we're removing
+			if (typeof component.destroy === 'function') {
+				component.destroy();
+			}
+		}
+	}
+
+	// Clear the cache but restore the kept components
 	componentCache.clear();
+
+	// Restore the kept components
+	for (const [key, component] of componentsToKeep.entries()) {
+		componentCache.set(key, component);
+	}
+
+	// Reset component counter
 	componentCounter = 0;
-}
+};
 
 /**
  * JSX factory function that creates virtual DOM nodes
@@ -328,8 +347,6 @@ export const useComponent = <P extends Record<string, any> = {}>(
 	const cacheKey = key || `${ComponentClass.name}-${componentCounter++}`;
 
 	let instance: Component;
-
-	console.log('useComponent', cacheKey, componentCache);
 
 	// Check if we already have an instance with this key
 	if (componentCache.has(cacheKey)) {

@@ -73,8 +73,17 @@ export abstract class Component {
 	 * Can be called when the component is reused with new props
 	 */
 	public updateProps(newProps: Record<string, any>): void {
-		this.props = { ...newProps };
-		this.updateUI();
+		// Check if props have actually changed before updating
+		const hasChanged =
+			!this.props ||
+			Object.entries(newProps).some(
+				([key, value]) => this.props[key] !== value
+			);
+
+		if (hasChanged) {
+			this.props = { ...newProps };
+			this.updateUI();
+		}
 	}
 
 	/**
@@ -87,11 +96,9 @@ export abstract class Component {
 	/**
 	 * Internal method to update the UI based on render output
 	 */
-	private updateUI(): void {
-		// Handle render as both a function and a property
+	protected updateUI(): void {
 		let content;
 
-		// Check if render is a function property
 		if (typeof this.render === 'function') {
 			content = this.render();
 		}

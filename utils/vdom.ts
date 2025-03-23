@@ -33,11 +33,11 @@ export type VNode = VNodeText | VNodeElement | VNodeComponent;
 /**
  * Create a virtual DOM element node
  */
-export function createElement(
+export const createElement = (
 	tagName: string,
 	props: Record<string, any> = {},
 	...children: any[]
-): VNodeElement {
+): VNodeElement => {
 	// Process children to handle primitive values
 	const processedChildren: VNode[] = children
 		.flat()
@@ -61,7 +61,7 @@ export function createElement(
 		props,
 		children: processedChildren,
 	};
-}
+};
 
 /**
  * Create a virtual DOM text node
@@ -454,7 +454,7 @@ export const render = (
 /**
  * Render a virtual DOM node to a real DOM node
  */
-export function renderVNode(vnode: VNode): Node {
+export const renderVNode = (vnode: VNode): Node => {
 	if (vnode.type === 'text') {
 		return document.createTextNode(vnode.text);
 	}
@@ -495,13 +495,13 @@ export function renderVNode(vnode: VNode): Node {
 	}
 
 	return element;
-}
+};
 
 /**
  * Patch an existing DOM node with a virtual DOM node
  * This is a simple implementation for now, not a full diff algorithm
  */
-export function patchDOM(oldNode: Node, vnode: VNode): Node {
+export const patchDOM = (oldNode: Node, vnode: VNode): Node => {
 	// If we're dealing with a component node, just replace with the component's element
 	if (vnode.type === 'component') {
 		const newNode = vnode.component.getElement();
@@ -585,4 +585,4 @@ export function patchDOM(oldNode: Node, vnode: VNode): Node {
 	}
 
 	return element;
-}
+};

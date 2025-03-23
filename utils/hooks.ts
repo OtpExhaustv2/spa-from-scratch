@@ -91,28 +91,66 @@ export abstract class HookComponent extends Component {
 	}
 
 	/**
+	 * Reset hook state for a new render cycle
+	 */
+	protected resetHookIndices(): void {
+		this.hookIndex = 0;
+	}
+
+	/**
+	 * Helper to render the component with hooks
+	 */
+	protected renderWithHooks(): VNode | void {
+		// Reset hook index first to ensure hooks are called in the same order
+		this.resetHookIndices();
+
+		const prevHookStateLength = this.hookStates.length;
+
+		const content = this.render();
+
+		// Check if we have any hooks left over that weren't used in this render
+		// This can happen if conditional hooks are used, and the conditions change
+		if (this.hookIndex < prevHookStateLength) {
+			console.log(
+				`${this.constructor.name}: Trimming unused hook states from ${prevHookStateLength} to ${this.hookIndex}`
+			);
+			// Trim the hook states to match the number of hooks used
+			this.hookStates.splice(this.hookIndex);
+		}
+
+		return content;
+	}
+
+	/**
 	 * useState hook for managing component state
-	 * @param initialState Initial state value
+	 * @param initialState Initial state value or function that returns the initial state
 	 * @returns [state, setState] tuple
 	 */
-	protected useState<T>(initialState: T): [T, (newState: T) => void] {
+	protected useState<T>(
+		initialState: T | (() => T)
+	): [T, (newState: T | ((prevState: T) => T)) => void] {
 		const index = this.hookIndex++;
 
-		// Initialize state if this is the first render
+		// Initialize state if this hook hasn't been used before
 		if (index >= this.hookStates.length) {
-			this.hookStates.push(initialState);
+			const initialValue =
+				typeof initialState === 'function'
+					? (initialState as () => T)()
+					: initialState;
+
+			this.hookStates[index] = initialValue;
 		}
-		// Otherwise, use the existing state (ignore initialState on re-renders)
 
-		const state = this.hookStates[index];
+		const state = this.hookStates[index] as T;
 
-		// Create setter function
-		const setState = (newState: T) => {
-			// Only update and re-render if state actually changed
-			if (this.hookStates[index] !== newState) {
-				// Update the state
-				this.hookStates[index] = newState;
-				// Trigger a re-render
+		const setState = (newState: T | ((prevState: T) => T)) => {
+			const nextState =
+				typeof newState === 'function'
+					? (newState as (prevState: T) => T)(this.hookStates[index] as T)
+					: newState;
+
+			if (this.hookStates[index] !== nextState) {
+				this.hookStates[index] = nextState;
 				this.update();
 			}
 		};
@@ -254,50 +292,24 @@ export abstract class HookComponent extends Component {
 	}
 
 	/**
-	 * Override update method
+	 * Override the updateUI method from Component to use our hook system
 	 */
-	public override update(_data?: any): void {
-		this.renderWithHooks();
-	}
-
-	/**
-	 * Render with hooks
-	 */
-	private renderWithHooks(): void {
-		// Reset hook index before rendering
-		this.hookIndex = 0;
-
-		// Debug log
-		console.log(
-			`Rendering ${this.constructor.name} with ${this.hookStates.length} hook states`
-		);
-
-		// Handle render as both a function and a property
-		let content;
-
-		// Check if render is a function property
-		if (typeof this.render === 'function') {
-			content = this.render();
-		}
-		// Skip render if it's not implemented yet
-		else if (this.render === undefined) {
-			return;
-		}
-		// Treat as a method accessed via prototype
-		else {
-			const renderMethod = Object.getPrototypeOf(this).render;
-			if (typeof renderMethod === 'function') {
-				content = renderMethod.call(this);
-			} else {
-				console.warn('HookComponent has no render method implemented:', this);
-				return;
-			}
-		}
+	protected override updateUI(): void {
+		// Run the render method with hooks
+		const content = this.renderWithHooks();
 
 		// If render returns content directly, apply it
 		if (content) {
 			this.replaceContents(content);
 		}
+	}
+
+	/**
+	 * Override update to reset hook indices before performing update
+	 */
+	public override update(data?: any): void {
+		// Call the parent update method
+		super.update(data);
 	}
 
 	/**
